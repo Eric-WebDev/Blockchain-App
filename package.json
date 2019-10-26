@@ -1,5 +1,5 @@
 {
-  "name": "blockchain",                     
+  "name": "blockchain",
   "version": "1.0.0",
   "description": "Blockchain Project",
   "main": "index.js",
@@ -17,6 +17,8 @@
     "body-parser": "^1.19.0",
     "express": "^4.17.1",
     "nodemon": "^1.19.1",
+    "request": "^2.88.0",
+    "request-promise": "^4.2.4",
     "sha256": "^0.2.0",
     "uuid": "^3.3.3"
   }

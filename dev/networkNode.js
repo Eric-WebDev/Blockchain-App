@@ -5,6 +5,7 @@ const Blockchain = require("./blockchain");
 const block = new Blockchain();
 const uuid = require("uuid/v1");
 const port = process.argv[2];
+const rp = require("request-promise");
 const nodeAddress = uuid()
   .split("-")
   .join("");
@@ -24,6 +25,29 @@ app.post("/transaction", function(req, res) {
   );
   res.json({ note: `Transaction added to block ${blockIndex}` });
 });
+
+app.post("transaction/broadast", function(req, res) {
+  const newTransaction = block.createNewTransaction(
+    req.body.amount,
+    req.body.sender,
+    req.body.recipient
+  );
+  block.addTransactionToPendingTransaction(newTransaction);
+  const requestPromises = [];
+  block.networkNodes.forEach(networkNodeUrl => {
+    const requestOptions = {
+      uri: networkNodeUrl + "/transaction",
+      method: "POST",
+      body: newTransaction,
+      json: true
+    };
+    requestPromises.push(rp(requestOptions));
+  });
+  Promise.all(requestPromises).then(data => {
+    res.json({ note: "transaction created and broadast" });
+  });
+});
+
 //mine block
 app.get("/mine", function(req, res) {
   const lastBlock = block.getLastBlock();
@@ -41,8 +65,56 @@ app.get("/mine", function(req, res) {
     block: newBlock
   });
 });
-
-
+//register node and broadcast to network (complicated)
+app.post("/register-and-broadcast-node", function(req, res) {
+  const newNodeUrl = req.body.newNodeUrl;
+  if (bitcoin.networkNodes.indexOf(newNodeUrl) == -1)
+    block.networkNodes.push(newNodeUrl);
+  block.networkNodes.forEach(networkNodeUrl => {
+    const requestOptions = {
+      uri: networkNodeUrl + "/register-node",
+      method: "POST",
+      body: { newNodeUrl: newNodeUrl },
+      json: true
+    };
+    regNodesPromises.push(rp(requestOptions));
+  });
+  Promise.all(regNodesPromises)
+    .then(data => {
+      const bulkRegisterOptions = {
+        uri: newNodeUrl + "/register-node-bulk",
+        method: "POST",
+        body: {
+          allNetworkNodes: [...block.networkNodes, block.networkNodeUrl]
+        },
+        json: true
+      };
+      return rp(bulkRegisterOptions);
+    })
+    .then(data => {
+      res.json({ note: "New node registred successfuly." });
+    });
+});
+//register node with network
+app.post("/register-node", function(req, res) {
+  const newNodeUrl = req.body.newNodeUrl;
+  const nodeNotAlreadyPresent = block.networkNodes.indexOf(newNodeUrl) == -1;
+  const notCurrentNode = block.CurrentNode !== newNodeUrl;
+  if (nodeNotAlreadyPresent && notCurrentNode)
+    block.networkNodes.push(newNodeUrl);
+  res.json({ note: "New node registred " });
+});
+// register multiple nodes at once
+app.post("/register-nodes-bulk", function(req, res) {
+  const allNetworkNodes = req.body.allNetworkNodes;
+  allNetworkNodes.foreach(networkNodeUrl => {
+    const nodeNotAlreadyPresent = block.networkNodes.ind(networkNodeUrl) == -1;
+    const notCurrentNode = block.CurrentNodeUrl !== networkNodeUrl;
+    if (nodeNotAlreadyPresent && notCurrentNode)
+      block.networkNodes.push(networkNodeUrl);
+  });
+  res.json({ note: "Bulk registartion successful" });
+});
 
 app.listen(port, function() {
   console.log(`listening on port ${port}....`);
